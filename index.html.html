@@ -1,0 +1,1049 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1" />
+  <title>TC日文會議_口譯排程表</title>
+
+  <!-- Firebase SDK -->
+  <script type="module">
+    import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js";
+    import { getDatabase, ref, set, get, onValue, remove, push } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-database.js";
+
+    // ============================================================
+    // 🔧 FIREBASE 設定 - 請填入你的 Firebase 專案資訊
+    // ============================================================
+    const firebaseConfig = {
+      apiKey: "AIzaSyCfqjnhbxvpwzl_QIFcpu-ufGGfO4gt-Cs",
+      authDomain: "tcjpmeetings.firebaseapp.com",
+      databaseURL: "https://tcjpmeetings-default-rtdb.asia-southeast1.firebasedatabase.app",
+      projectId: "tcjpmeetings",
+      storageBucket: "tcjpmeetings.appspot.com",
+      messagingSenderId: "",
+      appId: ""
+    };
+    // ============================================================
+
+    const FIREBASE_CONFIGURED = !firebaseConfig.apiKey.startsWith("YOUR_");
+
+    let db = null;
+    let meetingsRef = null;
+
+    if (FIREBASE_CONFIGURED) {
+      try {
+        const app = initializeApp(firebaseConfig);
+        db = getDatabase(app);
+        meetingsRef = ref(db, "meetings");
+        window.__firebaseDB = db;
+        window.__meetingsRef = meetingsRef;
+        window.__firebaseReady = true;
+        window.__fbFns = { ref, set, get, onValue, remove, push };
+        document.dispatchEvent(new Event("firebaseReady"));
+      } catch(e) {
+        console.error("Firebase init failed:", e);
+        window.__firebaseReady = false;
+        document.dispatchEvent(new Event("firebaseReady"));
+      }
+    } else {
+      window.__firebaseReady = false;
+      document.dispatchEvent(new Event("firebaseReady"));
+    }
+  </script>
+
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --color-bg: #f8f9fa;
+      --color-surface: #ffffff;
+      --color-border: #e2e5e9;
+      --color-border-light: #f0f2f4;
+      --color-text-primary: #1a1d21;
+      --color-text-secondary: #5c6370;
+      --color-text-muted: #9ca3af;
+      --color-accent: #0078d4;
+      --color-accent-light: #e8f3fc;
+      --color-accent-hover: #106ebe;
+      --color-slot-hover: #f0f7ff;
+      --color-today: #fff3cd;
+      --color-meeting-1: #0078d4;
+      --color-meeting-2: #107c10;
+      --color-meeting-3: #881798;
+      --color-meeting-4: #d83b01;
+      --color-meeting-5: #0099bc;
+      --shadow-sm: 0 1px 3px rgba(0,0,0,0.08);
+      --shadow-md: 0 4px 12px rgba(0,0,0,0.12);
+      --shadow-lg: 0 8px 24px rgba(0,0,0,0.16);
+      --radius-sm: 4px;
+      --radius-md: 8px;
+      --radius-lg: 12px;
+      --font-sans: -apple-system, BlinkMacSystemFont, "Segoe UI", "Noto Sans TC", sans-serif;
+      --header-height: 56px;
+      --time-col-width: 64px;
+      --slot-height: 36px;
+    }
+
+    body {
+      font-family: var(--font-sans);
+      background: var(--color-bg);
+      color: var(--color-text-primary);
+      min-height: 100vh;
+      overflow-x: hidden;
+    }
+
+    /* ── Header ── */
+    .app-header {
+      position: sticky;
+      top: 0;
+      z-index: 100;
+      background: var(--color-surface);
+      border-bottom: 1px solid var(--color-border);
+      box-shadow: var(--shadow-sm);
+      height: var(--header-height);
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 0 20px;
+    }
+    .header-left { display: flex; align-items: center; gap: 12px; }
+    .app-logo {
+      font-size: 16px;
+      font-weight: 700;
+      color: var(--color-accent);
+      letter-spacing: -0.3px;
+    }
+    .week-label {
+      font-size: 14px;
+      color: var(--color-text-secondary);
+      font-weight: 500;
+    }
+    .header-nav { display: flex; align-items: center; gap: 6px; }
+    .nav-btn {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      width: 32px;
+      height: 32px;
+      border: 1px solid var(--color-border);
+      background: var(--color-surface);
+      border-radius: var(--radius-sm);
+      cursor: pointer;
+      color: var(--color-text-secondary);
+      transition: all 0.15s;
+      font-size: 14px;
+    }
+    .nav-btn:hover { background: var(--color-accent-light); border-color: var(--color-accent); color: var(--color-accent); }
+    .today-btn {
+      padding: 0 12px;
+      width: auto;
+      font-size: 13px;
+      font-weight: 500;
+    }
+    .header-right { display: flex; align-items: center; gap: 8px; }
+    .sync-status {
+      display: flex;
+      align-items: center;
+      gap: 5px;
+      font-size: 12px;
+      color: var(--color-text-muted);
+      padding: 4px 10px;
+      border-radius: 20px;
+      background: #f3f4f6;
+    }
+    .sync-dot {
+      width: 7px;
+      height: 7px;
+      border-radius: 50%;
+      background: #d1d5db;
+    }
+    .sync-dot.online { background: #22c55e; animation: pulse 2s infinite; }
+    .sync-dot.error { background: #ef4444; }
+    @keyframes pulse {
+      0%, 100% { opacity: 1; }
+      50% { opacity: 0.5; }
+    }
+
+    /* ── Main layout ── */
+    .app-main {
+      max-width: 1200px;
+      margin: 0 auto;
+      padding: 16px 16px 40px;
+    }
+
+    /* ── Week Grid ── */
+    .week-grid {
+      background: var(--color-surface);
+      border-radius: var(--radius-lg);
+      border: 1px solid var(--color-border);
+      overflow: hidden;
+      box-shadow: var(--shadow-sm);
+    }
+
+    /* Day headers */
+    .day-headers {
+      display: grid;
+      grid-template-columns: var(--time-col-width) repeat(5, 1fr);
+      border-bottom: 2px solid var(--color-border);
+      background: #fafbfc;
+    }
+    .day-header-spacer { border-right: 1px solid var(--color-border); }
+    .day-header {
+      padding: 12px 8px;
+      text-align: center;
+      border-right: 1px solid var(--color-border);
+      cursor: pointer;
+    }
+    .day-header:last-child { border-right: none; }
+    .day-name {
+      font-size: 11px;
+      font-weight: 600;
+      color: var(--color-text-muted);
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+      margin-bottom: 2px;
+    }
+    .day-date {
+      font-size: 20px;
+      font-weight: 600;
+      color: var(--color-text-primary);
+      line-height: 1.2;
+    }
+    .day-header.today .day-date {
+      background: var(--color-accent);
+      color: #fff;
+      width: 32px;
+      height: 32px;
+      border-radius: 50%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      margin: 2px auto 0;
+      font-size: 16px;
+    }
+    .day-header.today .day-name { color: var(--color-accent); }
+
+    /* Time slots */
+    .grid-body {
+      display: grid;
+      grid-template-columns: var(--time-col-width) repeat(5, 1fr);
+      overflow-y: auto;
+      max-height: calc(100vh - var(--header-height) - 100px);
+    }
+    .time-col {
+      position: sticky;
+      left: 0;
+      z-index: 10;
+      background: #fafbfc;
+      border-right: 1px solid var(--color-border);
+    }
+    .time-label {
+      height: var(--slot-height);
+      display: flex;
+      align-items: flex-start;
+      justify-content: flex-end;
+      padding: 0 8px;
+      font-size: 11px;
+      color: var(--color-text-muted);
+      font-weight: 500;
+      transform: translateY(-6px);
+      white-space: nowrap;
+    }
+    .time-label:first-child { transform: none; align-items: center; }
+
+    .day-col {
+      border-right: 1px solid var(--color-border);
+      position: relative;
+    }
+    .day-col:last-child { border-right: none; }
+
+    .slot {
+      height: var(--slot-height);
+      border-bottom: 1px solid var(--color-border-light);
+      cursor: pointer;
+      position: relative;
+      transition: background 0.1s;
+    }
+    .slot:hover { background: var(--color-slot-hover); }
+    .slot.hour-start { border-bottom-color: var(--color-border); }
+
+    /* Meeting blocks */
+    .meeting-block {
+      position: absolute;
+      left: 2px;
+      right: 2px;
+      border-radius: var(--radius-sm);
+      padding: 3px 6px;
+      cursor: pointer;
+      overflow: hidden;
+      z-index: 5;
+      transition: filter 0.1s, transform 0.1s;
+    }
+    .meeting-block:hover { filter: brightness(0.92); transform: scale(1.01); }
+    .meeting-title {
+      font-size: 11px;
+      font-weight: 600;
+      color: #fff;
+      line-height: 1.3;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+    .meeting-time-label {
+      font-size: 10px;
+      color: rgba(255,255,255,0.85);
+      line-height: 1.2;
+    }
+
+    /* ── Modal ── */
+    .modal-overlay {
+      display: none;
+      position: fixed;
+      inset: 0;
+      background: rgba(0,0,0,0.45);
+      z-index: 1000;
+      align-items: center;
+      justify-content: center;
+      padding: 16px;
+    }
+    .modal-overlay.open { display: flex; }
+    .modal {
+      background: var(--color-surface);
+      border-radius: var(--radius-lg);
+      box-shadow: var(--shadow-lg);
+      width: 100%;
+      max-width: 480px;
+      max-height: 90vh;
+      overflow-y: auto;
+      animation: slideUp 0.2s ease;
+    }
+    @keyframes slideUp {
+      from { transform: translateY(20px); opacity: 0; }
+      to { transform: translateY(0); opacity: 1; }
+    }
+    .modal-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 18px 20px 14px;
+      border-bottom: 1px solid var(--color-border);
+    }
+    .modal-title { font-size: 16px; font-weight: 700; color: var(--color-text-primary); }
+    .modal-close {
+      width: 30px;
+      height: 30px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      border: none;
+      background: transparent;
+      cursor: pointer;
+      color: var(--color-text-muted);
+      border-radius: var(--radius-sm);
+      font-size: 18px;
+      transition: all 0.1s;
+    }
+    .modal-close:hover { background: #f3f4f6; color: var(--color-text-primary); }
+    .modal-body { padding: 20px; }
+    .modal-footer {
+      display: flex;
+      justify-content: flex-end;
+      gap: 8px;
+      padding: 14px 20px;
+      border-top: 1px solid var(--color-border);
+    }
+
+    /* Form fields */
+    .field { margin-bottom: 16px; }
+    .field:last-child { margin-bottom: 0; }
+    .field label {
+      display: block;
+      font-size: 13px;
+      font-weight: 600;
+      color: var(--color-text-secondary);
+      margin-bottom: 6px;
+    }
+    .field input,
+    .field textarea,
+    .field select {
+      width: 100%;
+      padding: 9px 12px;
+      border: 1px solid var(--color-border);
+      border-radius: var(--radius-sm);
+      font-size: 14px;
+      font-family: var(--font-sans);
+      color: var(--color-text-primary);
+      background: var(--color-surface);
+      transition: border-color 0.15s;
+      outline: none;
+    }
+    .field input:focus,
+    .field textarea:focus,
+    .field select:focus {
+      border-color: var(--color-accent);
+      box-shadow: 0 0 0 3px rgba(0,120,212,0.12);
+    }
+    .field textarea { resize: vertical; min-height: 80px; }
+    .field-row { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+
+    .color-picker-row {
+      display: flex;
+      gap: 8px;
+      flex-wrap: wrap;
+    }
+    .color-swatch {
+      width: 28px;
+      height: 28px;
+      border-radius: 50%;
+      cursor: pointer;
+      border: 3px solid transparent;
+      transition: border-color 0.1s, transform 0.1s;
+    }
+    .color-swatch:hover { transform: scale(1.15); }
+    .color-swatch.selected { border-color: var(--color-text-primary); }
+
+    /* Buttons */
+    .btn {
+      padding: 8px 18px;
+      border-radius: var(--radius-sm);
+      font-size: 14px;
+      font-weight: 600;
+      cursor: pointer;
+      border: none;
+      transition: all 0.15s;
+      font-family: var(--font-sans);
+    }
+    .btn-primary {
+      background: var(--color-accent);
+      color: #fff;
+    }
+    .btn-primary:hover { background: var(--color-accent-hover); }
+    .btn-danger {
+      background: #fef2f2;
+      color: #dc2626;
+      border: 1px solid #fecaca;
+    }
+    .btn-danger:hover { background: #fee2e2; }
+    .btn-ghost {
+      background: transparent;
+      color: var(--color-text-secondary);
+      border: 1px solid var(--color-border);
+    }
+    .btn-ghost:hover { background: #f3f4f6; }
+
+    /* Detail view */
+    .detail-field { margin-bottom: 14px; }
+    .detail-label {
+      font-size: 11px;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+      color: var(--color-text-muted);
+      margin-bottom: 3px;
+    }
+    .detail-value { font-size: 14px; color: var(--color-text-primary); line-height: 1.5; }
+    .detail-color-dot {
+      display: inline-block;
+      width: 12px;
+      height: 12px;
+      border-radius: 50%;
+      margin-right: 6px;
+      vertical-align: middle;
+    }
+
+    /* Config banner */
+    .config-banner {
+      background: #fff8e1;
+      border: 1px solid #ffd54f;
+      border-radius: var(--radius-md);
+      padding: 14px 18px;
+      margin-bottom: 16px;
+      font-size: 13px;
+      color: #6d4c00;
+      display: none;
+    }
+    .config-banner.show { display: block; }
+    .config-banner strong { font-weight: 700; }
+    .config-banner a { color: var(--color-accent); }
+
+    /* Toast */
+    .toast {
+      position: fixed;
+      bottom: 24px;
+      right: 24px;
+      background: #1a1d21;
+      color: #fff;
+      padding: 10px 18px;
+      border-radius: var(--radius-md);
+      font-size: 13px;
+      font-weight: 500;
+      box-shadow: var(--shadow-md);
+      z-index: 9999;
+      opacity: 0;
+      transform: translateY(10px);
+      transition: all 0.25s;
+      pointer-events: none;
+    }
+    .toast.show { opacity: 1; transform: translateY(0); }
+
+    /* Responsive */
+    @media (max-width: 640px) {
+      :root { --time-col-width: 44px; --slot-height: 32px; }
+      .app-header { padding: 0 12px; }
+      .app-logo { font-size: 14px; }
+      .week-label { display: none; }
+      .day-date { font-size: 16px; }
+      .app-main { padding: 10px 8px 40px; }
+      .field-row { grid-template-columns: 1fr; }
+    }
+  </style>
+</head>
+
+<body>
+  <!-- Header -->
+  <header class="app-header">
+    <div class="header-left">
+      <div class="app-logo">REXT</div>
+      <div class="week-label" id="weekLabel">—</div>
+    </div>
+    <div class="header-nav">
+      <button class="nav-btn today-btn" onclick="goToToday()">今日</button>
+      <button class="nav-btn" onclick="prevWeek()">‹</button>
+      <button class="nav-btn" onclick="nextWeek()">›</button>
+    </div>
+    <div class="header-right">
+      <div class="sync-status" id="syncStatus">
+        <div class="sync-dot" id="syncDot"></div>
+        <span id="syncLabel">離線模式</span>
+      </div>
+    </div>
+  </header>
+
+  <!-- Main -->
+  <main class="app-main">
+    <div class="config-banner" id="configBanner">
+      ⚠️ <strong>尚未設定 Firebase</strong> — 目前使用本地儲存（localStorage）。跨裝置同步需要先
+      <a href="https://console.firebase.google.com/" target="_blank">建立 Firebase 專案</a>，
+      然後在此 HTML 檔案頂端的 <code>firebaseConfig</code> 填入你的金鑰。
+      <a href="#" onclick="document.getElementById('configBanner').style.display='none'">關閉</a>
+    </div>
+
+    <div class="week-grid">
+      <div class="day-headers" id="dayHeaders"></div>
+      <div class="grid-body" id="gridBody"></div>
+    </div>
+  </main>
+
+  <!-- Add/Edit Modal -->
+  <div class="modal-overlay" id="editModal" onclick="handleOverlayClick(event)">
+    <div class="modal">
+      <div class="modal-header">
+        <div class="modal-title" id="editModalTitle">新增會議</div>
+        <button class="modal-close" onclick="closeEditModal()">×</button>
+      </div>
+      <div class="modal-body">
+        <div class="field">
+          <label>會議名稱 *</label>
+          <input type="text" id="f-title" placeholder="輸入會議名稱" />
+        </div>
+        <div class="field-row">
+          <div class="field">
+            <label>開始時間</label>
+            <input type="time" id="f-start" step="1800" />
+          </div>
+          <div class="field">
+            <label>結束時間</label>
+            <input type="time" id="f-end" step="1800" />
+          </div>
+        </div>
+        <div class="field">
+          <label>參與者</label>
+          <input type="text" id="f-attendees" placeholder="e.g. 田中さん、鈴木さん" />
+        </div>
+        <div class="field">
+          <label>地點 / 連結</label>
+          <input type="text" id="f-location" placeholder="會議室 A 或 Zoom 連結" />
+        </div>
+        <div class="field">
+          <label>備註</label>
+          <textarea id="f-notes" placeholder="會議議程、注意事項…"></textarea>
+        </div>
+        <div class="field">
+          <label>顏色</label>
+          <div class="color-picker-row" id="colorPicker"></div>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button class="btn btn-ghost" onclick="closeEditModal()">取消</button>
+        <button class="btn btn-primary" onclick="saveMeeting()">儲存</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Detail Modal -->
+  <div class="modal-overlay" id="detailModal" onclick="handleDetailOverlayClick(event)">
+    <div class="modal">
+      <div class="modal-header">
+        <div class="modal-title" id="detailTitle">—</div>
+        <button class="modal-close" onclick="closeDetailModal()">×</button>
+      </div>
+      <div class="modal-body" id="detailBody"></div>
+      <div class="modal-footer">
+        <button class="btn btn-danger" onclick="deleteMeeting()">刪除</button>
+        <button class="btn btn-ghost" onclick="closeDetailModal()">關閉</button>
+        <button class="btn btn-primary" onclick="openEditFromDetail()">編輯</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Toast -->
+  <div class="toast" id="toast"></div>
+
+  <script>
+  // ══════════════════════════════════════════════════
+  // State & Config
+  // ══════════════════════════════════════════════════
+  const DAYS = ["一", "二", "三", "四", "五"];
+  const DAY_LABELS = ["MON", "TUE", "WED", "THU", "FRI"];
+  const HOURS_START = 9;
+  const HOURS_END = 18;
+  const COLORS = [
+    "#0078d4", "#107c10", "#881798", "#d83b01",
+    "#0099bc", "#ca5010", "#004b87", "#038387"
+  ];
+  const STORAGE_KEY = "rext-meetings-v1";
+
+  let currentWeekStart = null;   // Monday of displayed week
+  let meetings = {};             // id → meeting object
+  let editingId = null;          // null = new, else = editing this id
+  let selectedColor = COLORS[0];
+  let detailId = null;
+  let useFirebase = false;
+  let fbListener = null;
+
+  // ══════════════════════════════════════════════════
+  // Init
+  // ══════════════════════════════════════════════════
+  document.addEventListener("DOMContentLoaded", () => {
+    currentWeekStart = getMonday(new Date());
+    buildColorPicker();
+    loadData();
+
+    // Wait for Firebase
+    document.addEventListener("firebaseReady", () => {
+      if (window.__firebaseReady) {
+        useFirebase = true;
+        setSyncStatus("online", "雲端同步中");
+        subscribeFirebase();
+      } else {
+        // Show config banner if keys not set
+        document.getElementById("configBanner").classList.add("show");
+        loadFromLocal();
+      }
+    });
+  });
+
+  // ══════════════════════════════════════════════════
+  // Data Layer
+  // ══════════════════════════════════════════════════
+  function loadData() {
+    // Optimistically load from local first
+    loadFromLocal();
+  }
+
+  function loadFromLocal() {
+    try {
+      const raw = localStorage.getItem(STORAGE_KEY);
+      meetings = raw ? JSON.parse(raw) : {};
+      render();
+    } catch(e) {
+      meetings = {};
+      render();
+    }
+  }
+
+  function saveToLocal() {
+    try { localStorage.setItem(STORAGE_KEY, JSON.stringify(meetings)); } catch(e) {}
+  }
+
+  function subscribeFirebase() {
+    if (!window.__meetingsRef) return;
+    const { onValue } = window.__fbFns;
+    fbListener = onValue(window.__meetingsRef, (snapshot) => {
+      const data = snapshot.val();
+      meetings = data || {};
+      saveToLocal(); // keep local in sync too
+      render();
+    }, (err) => {
+      setSyncStatus("error", "同步錯誤");
+      console.error("Firebase read error:", err);
+    });
+  }
+
+  async function persistMeeting(id, data) {
+    if (useFirebase && window.__meetingsRef) {
+      const { ref, set } = window.__fbFns;
+      const itemRef = ref(window.__firebaseDB, `meetings/${id}`);
+      await set(itemRef, data);
+    } else {
+      meetings[id] = data;
+      saveToLocal();
+      render();
+    }
+  }
+
+  async function deleteMeetingData(id) {
+    if (useFirebase && window.__firebaseDB) {
+      const { ref, remove } = window.__fbFns;
+      const itemRef = ref(window.__firebaseDB, `meetings/${id}`);
+      await remove(itemRef);
+    } else {
+      delete meetings[id];
+      saveToLocal();
+      render();
+    }
+  }
+
+  // ══════════════════════════════════════════════════
+  // Render
+  // ══════════════════════════════════════════════════
+  function render() {
+    renderDayHeaders();
+    renderGrid();
+    updateWeekLabel();
+  }
+
+  function getMonday(date) {
+    const d = new Date(date);
+    const day = d.getDay();
+    const diff = (day === 0 ? -6 : 1 - day);
+    d.setDate(d.getDate() + diff);
+    d.setHours(0,0,0,0);
+    return d;
+  }
+
+  function updateWeekLabel() {
+    const end = new Date(currentWeekStart);
+    end.setDate(end.getDate() + 4);
+    const fmt = d => `${d.getMonth()+1}/${d.getDate()}`;
+    document.getElementById("weekLabel").textContent =
+      `${currentWeekStart.getFullYear()} 年 ${fmt(currentWeekStart)} – ${fmt(end)}`;
+  }
+
+  function renderDayHeaders() {
+    const today = new Date();
+    today.setHours(0,0,0,0);
+    const headers = document.getElementById("dayHeaders");
+    headers.innerHTML = `<div class="day-header-spacer"></div>`;
+    for (let i = 0; i < 5; i++) {
+      const d = new Date(currentWeekStart);
+      d.setDate(d.getDate() + i);
+      const isToday = d.getTime() === today.getTime();
+      headers.innerHTML += `
+        <div class="day-header ${isToday ? "today" : ""}">
+          <div class="day-name">${DAY_LABELS[i]}</div>
+          <div class="day-date">${d.getDate()}</div>
+        </div>`;
+    }
+  }
+
+  function renderGrid() {
+    const body = document.getElementById("gridBody");
+    body.innerHTML = "";
+
+    const totalSlots = (HOURS_END - HOURS_START) * 2; // 18 hours → 36 slots
+
+    // Time column
+    const timeCol = document.createElement("div");
+    timeCol.className = "time-col";
+    for (let s = 0; s <= totalSlots; s++) {
+      const h = HOURS_START + Math.floor(s / 2);
+      const m = s % 2 === 0 ? "00" : "30";
+      const el = document.createElement("div");
+      el.className = "time-label";
+      if (s % 2 === 0) el.textContent = `${String(h).padStart(2,"0")}:${m}`;
+      timeCol.appendChild(el);
+    }
+    body.appendChild(timeCol);
+
+    // Day columns
+    for (let di = 0; di < 5; di++) {
+      const colDate = new Date(currentWeekStart);
+      colDate.setDate(colDate.getDate() + di);
+      const dateStr = toDateStr(colDate);
+
+      const col = document.createElement("div");
+      col.className = "day-col";
+
+      // Slots
+      for (let s = 0; s < totalSlots; s++) {
+        const slot = document.createElement("div");
+        const isHourStart = s % 2 === 0;
+        slot.className = `slot ${isHourStart ? "hour-start" : ""}`;
+        slot.dataset.date = dateStr;
+        slot.dataset.slot = s;
+        const h = HOURS_START + Math.floor(s / 2);
+        const m = s % 2 === 0 ? "00" : "30";
+        slot.dataset.time = `${String(h).padStart(2,"0")}:${m}`;
+        slot.onclick = () => openNewMeeting(dateStr, slot.dataset.time);
+        col.appendChild(slot);
+      }
+
+      // Meeting blocks
+      const dayMeetings = Object.entries(meetings)
+        .filter(([, m]) => m.date === dateStr)
+        .sort((a, b) => a[1].startTime.localeCompare(b[1].startTime));
+
+      dayMeetings.forEach(([id, m]) => {
+        const block = buildMeetingBlock(id, m, totalSlots);
+        if (block) col.appendChild(block);
+      });
+
+      body.appendChild(col);
+    }
+  }
+
+  function buildMeetingBlock(id, m, totalSlots) {
+    const startSlot = timeToSlot(m.startTime);
+    const endSlot = timeToSlot(m.endTime);
+    if (startSlot < 0 || endSlot <= startSlot) return null;
+
+    const topPct = (startSlot / totalSlots) * 100;
+    const heightPct = ((endSlot - startSlot) / totalSlots) * 100;
+    const slotH = parseFloat(getComputedStyle(document.documentElement).getPropertyValue("--slot-height")) || 36;
+
+    const block = document.createElement("div");
+    block.className = "meeting-block";
+    block.style.top = `${startSlot * slotH}px`;
+    block.style.height = `${(endSlot - startSlot) * slotH - 2}px`;
+    block.style.background = m.color || COLORS[0];
+    block.innerHTML = `
+      <div class="meeting-title">${escHtml(m.title)}</div>
+      ${(endSlot - startSlot) >= 2 ? `<div class="meeting-time-label">${m.startTime}–${m.endTime}</div>` : ""}
+    `;
+    block.onclick = (e) => { e.stopPropagation(); openDetail(id); };
+    return block;
+  }
+
+  function timeToSlot(time) {
+    if (!time) return -1;
+    const [h, min] = time.split(":").map(Number);
+    return (h - HOURS_START) * 2 + (min >= 30 ? 1 : 0);
+  }
+
+  function toDateStr(d) {
+    return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,"0")}-${String(d.getDate()).padStart(2,"0")}`;
+  }
+
+  function escHtml(s) {
+    return String(s).replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;");
+  }
+
+  // ══════════════════════════════════════════════════
+  // Navigation
+  // ══════════════════════════════════════════════════
+  function prevWeek() {
+    currentWeekStart.setDate(currentWeekStart.getDate() - 7);
+    render();
+  }
+  function nextWeek() {
+    currentWeekStart.setDate(currentWeekStart.getDate() + 7);
+    render();
+  }
+  function goToToday() {
+    currentWeekStart = getMonday(new Date());
+    render();
+  }
+
+  // ══════════════════════════════════════════════════
+  // Edit Modal
+  // ══════════════════════════════════════════════════
+  function buildColorPicker() {
+    const cp = document.getElementById("colorPicker");
+    COLORS.forEach(c => {
+      const sw = document.createElement("div");
+      sw.className = `color-swatch ${c === selectedColor ? "selected" : ""}`;
+      sw.style.background = c;
+      sw.onclick = () => {
+        selectedColor = c;
+        document.querySelectorAll(".color-swatch").forEach(el => el.classList.remove("selected"));
+        sw.classList.add("selected");
+      };
+      cp.appendChild(sw);
+    });
+  }
+
+  function openNewMeeting(date, time) {
+    editingId = null;
+    document.getElementById("editModalTitle").textContent = "新增會議";
+    document.getElementById("f-title").value = "";
+    document.getElementById("f-attendees").value = "";
+    document.getElementById("f-location").value = "";
+    document.getElementById("f-notes").value = "";
+    document.getElementById("f-start").value = time;
+    // Default 1 hour
+    const [h, m] = time.split(":").map(Number);
+    const endH = m >= 30 ? h + 1 : h;
+    const endM = m >= 30 ? "00" : "30";
+    document.getElementById("f-end").value = `${String(endH).padStart(2,"0")}:${endM}`;
+    selectedColor = COLORS[0];
+    document.querySelectorAll(".color-swatch").forEach((el, i) => {
+      el.classList.toggle("selected", i === 0);
+    });
+    document.getElementById("editModal").classList.add("open");
+    setTimeout(() => document.getElementById("f-title").focus(), 80);
+
+    // Store date for saving
+    window._pendingDate = date;
+  }
+
+  function closeEditModal() {
+    document.getElementById("editModal").classList.remove("open");
+    editingId = null;
+  }
+
+  function handleOverlayClick(e) {
+    if (e.target === e.currentTarget) closeEditModal();
+  }
+
+  function openEditFromDetail() {
+    if (!detailId || !meetings[detailId]) return;
+    const m = meetings[detailId];
+    editingId = detailId;
+    window._pendingDate = m.date;
+    closeDetailModal();
+    document.getElementById("editModalTitle").textContent = "編輯會議";
+    document.getElementById("f-title").value = m.title || "";
+    document.getElementById("f-start").value = m.startTime || "";
+    document.getElementById("f-end").value = m.endTime || "";
+    document.getElementById("f-attendees").value = m.attendees || "";
+    document.getElementById("f-location").value = m.location || "";
+    document.getElementById("f-notes").value = m.notes || "";
+    selectedColor = m.color || COLORS[0];
+    document.querySelectorAll(".color-swatch").forEach(el => {
+      el.classList.toggle("selected", el.style.background === selectedColor ||
+        hexToRgb(selectedColor) === el.style.background);
+    });
+    document.getElementById("editModal").classList.add("open");
+  }
+
+  function hexToRgb(hex) {
+    const r = parseInt(hex.slice(1,3),16);
+    const g = parseInt(hex.slice(3,5),16);
+    const b = parseInt(hex.slice(5,7),16);
+    return `rgb(${r}, ${g}, ${b})`;
+  }
+
+  async function saveMeeting() {
+    const title = document.getElementById("f-title").value.trim();
+    if (!title) { showToast("請輸入會議名稱"); return; }
+    const startTime = document.getElementById("f-start").value;
+    const endTime = document.getElementById("f-end").value;
+    if (!startTime || !endTime) { showToast("請填入開始與結束時間"); return; }
+    if (startTime >= endTime) { showToast("結束時間必須晚於開始時間"); return; }
+
+    const id = editingId || `m-${Date.now()}-${Math.random().toString(36).slice(2,7)}`;
+    const data = {
+      title,
+      date: window._pendingDate,
+      startTime,
+      endTime,
+      attendees: document.getElementById("f-attendees").value.trim(),
+      location: document.getElementById("f-location").value.trim(),
+      notes: document.getElementById("f-notes").value.trim(),
+      color: selectedColor,
+      updatedAt: new Date().toISOString()
+    };
+
+    closeEditModal();
+    await persistMeeting(id, data);
+    showToast(editingId ? "會議已更新" : "會議已新增");
+  }
+
+  // ══════════════════════════════════════════════════
+  // Detail Modal
+  // ══════════════════════════════════════════════════
+  function openDetail(id) {
+    const m = meetings[id];
+    if (!m) return;
+    detailId = id;
+    document.getElementById("detailTitle").textContent = m.title;
+    const body = document.getElementById("detailBody");
+    body.innerHTML = `
+      <div class="detail-field">
+        <div class="detail-label">日期與時間</div>
+        <div class="detail-value">${formatDateLong(m.date)} &nbsp;${m.startTime} – ${m.endTime}</div>
+      </div>
+      ${m.attendees ? `<div class="detail-field">
+        <div class="detail-label">參與者</div>
+        <div class="detail-value">${escHtml(m.attendees)}</div>
+      </div>` : ""}
+      ${m.location ? `<div class="detail-field">
+        <div class="detail-label">地點 / 連結</div>
+        <div class="detail-value">${escHtml(m.location)}</div>
+      </div>` : ""}
+      ${m.notes ? `<div class="detail-field">
+        <div class="detail-label">備註</div>
+        <div class="detail-value" style="white-space:pre-wrap">${escHtml(m.notes)}</div>
+      </div>` : ""}
+      <div class="detail-field">
+        <div class="detail-label">標籤顏色</div>
+        <div class="detail-value">
+          <span class="detail-color-dot" style="background:${m.color || COLORS[0]}"></span>
+          ${m.color || COLORS[0]}
+        </div>
+      </div>
+    `;
+    document.getElementById("detailModal").classList.add("open");
+  }
+
+  function closeDetailModal() {
+    document.getElementById("detailModal").classList.remove("open");
+    detailId = null;
+  }
+
+  function handleDetailOverlayClick(e) {
+    if (e.target === e.currentTarget) closeDetailModal();
+  }
+
+  async function deleteMeeting() {
+    if (!detailId) return;
+    if (!confirm("確定要刪除這個會議？")) return;
+    const id = detailId;
+    closeDetailModal();
+    await deleteMeetingData(id);
+    showToast("會議已刪除");
+  }
+
+  function formatDateLong(dateStr) {
+    const d = new Date(dateStr + "T00:00:00");
+    const days = ["日","一","二","三","四","五","六"];
+    return `${d.getFullYear()}年${d.getMonth()+1}月${d.getDate()}日（${days[d.getDay()]}）`;
+  }
+
+  // ══════════════════════════════════════════════════
+  // UI Helpers
+  // ══════════════════════════════════════════════════
+  function setSyncStatus(state, label) {
+    document.getElementById("syncDot").className = `sync-dot ${state}`;
+    document.getElementById("syncLabel").textContent = label;
+  }
+
+  let toastTimer = null;
+  function showToast(msg) {
+    const el = document.getElementById("toast");
+    el.textContent = msg;
+    el.classList.add("show");
+    if (toastTimer) clearTimeout(toastTimer);
+    toastTimer = setTimeout(() => el.classList.remove("show"), 2500);
+  }
+
+  // Keyboard shortcuts
+  document.addEventListener("keydown", e => {
+    if (e.key === "Escape") {
+      closeEditModal();
+      closeDetailModal();
+    }
+  });
+  </script>
+</body>
+</html>
